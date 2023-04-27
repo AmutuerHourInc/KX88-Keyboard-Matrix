@@ -23,7 +23,7 @@ B and M pins are configured as OUTPUT
 
 Note pins recieve signal from both B and M pins(but in opposite ways)
 
-    The B and M pin circuits can never be completed at the same time
+The B and M pin circuits can never be completed at the same time
     
 Note pins = row
 
