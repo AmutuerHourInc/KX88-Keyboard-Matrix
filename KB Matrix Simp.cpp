@@ -32,6 +32,41 @@ The keybed matrix sequence is as follows
       M circuit is completed 
     Key released - note pin reads LOW
       M circuit is broken
+      
+Note pins(INPUTS)
+ - D is Pin 23 of the teensy board
+ - E is Pin 22 of the teensy board
+ - F# is Pin 21 of the teensy board
+ - G# is Pin 20 of the teensy board
+ - A# is Pin 19 of the teensy board
+ - C is Pin 18 of the teensy board
+ - C# is Pin 2 of the teensy board
+ - D# is Pin 3 of the teensy board
+ - F is Pin 4 of the teensy board
+ - G is Pin 5 of the teensy board
+ - A is Pin 6 of the teensy board
+ - B is Pin 7 of the teensy board
+
+M Pins(KEYSTATE_DOWN)(OUTPUTS)
+- M0 is Pin 8 of the teensy board
+- M1 is Pin 9 of the teensy board
+- M2 is Pin 10 of the teensy board
+- M3 is Pin 11 of the teensy board
+- M4 is Pin 12 of the teensy board
+- M5 is Pin 24 of the teensy board
+- M6 is Pin 25 of the teensy board
+- M7 is Pin 26 of the teensy board
+
+B Pins(KEYSTATE_UP)(OUTPUTS)
+- B0 is Pin 17 of the teensy board
+- B1 is Pin 16 of the teensy board
+- B2 is Pin 15 of the teensy board
+- B3 is Pin 14 of the teensy board
+- B4 is Pin 13 of the teensy board
+- B5 is Pin 41 of the teensy board
+- B6 is Pin 40 of the teensy board
+- B7 is Pin 39 of the teensy board
+
 
 This code currently isn't measuring velocity, just trying to get proper scanning and output first
 */
