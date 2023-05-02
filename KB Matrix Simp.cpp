@@ -1,3 +1,4 @@
+#pragma region Hardware Details
 /*
 Im using the keybed from a Yamaha kx88 keybaord connected to a Teensy 4.1
 The keybed has 28 pins total
@@ -60,19 +61,21 @@ B Pins(KEYSTATE_UP)(OUTPUTS)
 - B6 is Pin 40 of the teensy board
 - B7 is Pin 39 of the teensy board
 
+Currently a scan takes 5-6 micro seconds not accounting for debouncing delays
+
 */
 
-// Currently a scan takes 5-6 micro seconds 
+#pragma region 
 #include <Arduino.h>
 #include <MIDI.h>
 
-MIDI_CREATE_INSTANCE(HardwareSerial, Serial8, MIDI); // 5 pin midi connector wired to tx pin(8) of my Teensy 4.1
+MIDI_CREATE_INSTANCE(HardwareSerial, Serial8, MIDI);
 
 const int numRows = 12;
 const int numCols = 8;
-const int rowPins[numRows] = {18, 2, 23, 3, 22, 4, 21, 5, 20, 6, 19, 7}; // Note Pins
-const int colPins1[numCols] = {17, 16, 15, 14, 13, 41, 40, 39}; // B pins
-const int colPins2[numCols] = {8, 9, 10, 11, 12, 24, 25, 26}; // M pins
+const int rowPins[numRows] = {18, 2, 23, 3, 22, 4, 21, 5, 20, 6, 19, 7};
+const int colPins1[numCols] = {17, 16, 15, 14, 13, 41, 40, 39};
+const int colPins2[numCols] = {8, 9, 10, 11, 12, 24, 25, 26};
 
 const int noteMapping[numRows] = {36, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35};
 
@@ -80,22 +83,35 @@ enum KeyState { UNPRESSED, FLOATING, PRESSED, RELEASED };
 
 struct Key {
   KeyState state;
-  unsigned long floatStartTime;
+  unsigned long floatStartTime = 0;
 };
 
 Key keys[numCols][numRows];
 
-// Function declarations
-int calculateVelocity(unsigned long floatTime);
+void setupPins();
+void initKeys();
+void scanMatrix();
+void processKeyState(int c, int r, bool keyState);
+void updateFloatTimer(int c, int r, bool start);
 void handleKeyPress(int col, int row, int velocity);
 void handleKeyRelease(int col, int row);
 
+int calculateVelocity(unsigned long floatTime);
+
+#pragma endregion
+
 void setup() {
-  // Serial.begin(9600);
-  // while (!Serial); // Wait for Serial Monitor to open
-
   MIDI.begin(MIDI_CHANNEL_OMNI);
+  Serial.begin(115200);
+  setupPins();
+  initKeys();
+}
 
+void loop() {
+  scanMatrix();
+}
+
+void setupPins() {
   for (int r = 0; r < numRows; r++) {
     pinMode(rowPins[r], INPUT_PULLUP);
   }
@@ -106,8 +122,9 @@ void setup() {
     digitalWrite(colPins1[c], LOW);
     digitalWrite(colPins2[c], LOW);
   }
+}
 
-  // Initialize all keys to UNPRESSED state
+void initKeys() {
   for (int c = 0; c < numCols; c++) {
     for (int r = 0; r < numRows; r++) {
       keys[c][r].state = UNPRESSED;
@@ -115,75 +132,57 @@ void setup() {
   }
 }
 
-void loop() {
+void scanMatrix() {
   for (int c = 0; c < numCols; c++) {
-    // Set all column pins LOW
     for (int i = 0; i < numCols; i++) {
       digitalWrite(colPins1[i], LOW);
     }
-
-    // Set current column pin HIGH
     digitalWrite(colPins1[c], HIGH);
 
     delayMicroseconds(10);
 
     for (int r = 0; r < numRows; r++) {
       bool keyState = !digitalRead(rowPins[r]);
+      processKeyState(c, r, keyState);
+    }
 
-      switch (keys[c][r].state) {
-        case UNPRESSED:
-          if (!keyState) {
-            keys[c][r].state = FLOATING;
-            keys[c][r].floatStartTime = micros();
-            digitalWrite(colPins2[c], HIGH); // Set corresponding column 2 pin HIGH
-          }
-          break;
+    delayMicroseconds(10);
+    digitalWrite(colPins2[c], LOW);
+  }
+}
 
-        case FLOATING:
-          if (keyState) {
-            keys[c][r].state = PRESSED;
-            unsigned long floatTime = micros() - keys[c][r].floatStartTime;
-            int velocity = calculateVelocity(floatTime);
-            handleKeyPress(c, r, velocity);
-          }
-          break;
-
-        case PRESSED:
-          if (!keyState) {
-            keys[c][r].state = RELEASED;
-            handleKeyRelease(c, r);
-          }
-          break;
-
-        case RELEASED:
-          if (!keyState) {
-            keys[c][r].state = UNPRESSED;
-          }
-          break;
+void processKeyState(int c, int r, bool keyState) {
+  switch (keys[c][r].state) {
+    case UNPRESSED:
+      if (!keyState) {
+        keys[c][r].state = FLOATING;
+        updateFloatTimer(c, r, true);
+        digitalWrite(colPins2[c], HIGH);
       }
-    }
+      break;
+      
+    case FLOATING:
+      delayMicroseconds(10);
+      if (keyState) {
+        keys[c][r].state = PRESSED;
+        updateFloatTimer(c, r, false);
+      }
+      break;
 
-    delayMicroseconds(10); // Add a delay before setting the second column pins LOW
-    digitalWrite(colPins2[c], LOW); // Set the second column pin LOW after scanning the rows
+    case PRESSED:
+      delayMicroseconds(10);
+      if (!keyState) {
+        keys[c][r].state = RELEASED;
+        handleKeyRelease(c, r);
+      }
+      break;
+
+    case RELEASED:
+      if (!keyState) {
+        keys[c][r].state = UNPRESSED;
+      }
+      break;
   }
-
-/*
-  // Print the key states to the Serial Monitor
-  for (int c = 0; c < numCols; c++) {
-    Serial.print("Octave: ");
-    Serial.print(c);
-    Serial.print(" - ");
-    for (int r = 0; r < numRows; r++) {
-      Serial.print(keys[c][r].state == PRESSED ? "1" : "0");
-    }
-    Serial.println();
-  }
-  
-  Serial.println("------");
-
-  // Optional delay to avoid flooding the Serial Monitor
-  delay(1000);
-  */
 }
 
 int calculateVelocity(unsigned long floatTime) {
@@ -191,21 +190,28 @@ int calculateVelocity(unsigned long floatTime) {
   return 127 - floatTime / 100; // Example calculation
 }
 
+void updateFloatTimer(int c, int r, bool start) {
+  if (start) {
+    keys[c][r].floatStartTime = micros();
+  } else {
+    unsigned long floatTime = micros() - keys[c][r].floatStartTime;
+    Serial.print("Float time for key (");
+    Serial.print(c);
+    Serial.print(", ");
+    Serial.print(r);
+    Serial.print("): ");
+    Serial.print(floatTime / 1000);
+    Serial.println(" ms");
+    int velocity = calculateVelocity(floatTime);
+    handleKeyPress(c, r, velocity);
+  }
+}
+
 void handleKeyPress(int col, int row, int velocity) {
   int note = noteMapping[row] + (col * 12);
 
   // Handle the key press event for the specified key with the given velocity
   MIDI.sendNoteOn(note, velocity, 1);
-
-  /*
-  Serial.print("Key Pressed: Octave ");
-  Serial.print(col);
-  Serial.print(", Note ");
-  Serial.print(row);
-  Serial.print(", Velocity ");
-  Serial.println(velocity);
-
-  delay(1000);*/
 }
 
 void handleKeyRelease(int col, int row) {
@@ -213,13 +219,4 @@ void handleKeyRelease(int col, int row) {
 
   // Handle the key release event for the specified key
   MIDI.sendNoteOff(note, 0, 1);
-
-  /*
-  Serial.print("Key Released: Octave ");
-  Serial.print(col);
-  Serial.print(", Note ");
-  Serial.println(row);
-
-  delay(1000);*/
-
 }
